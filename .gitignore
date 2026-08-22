@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local ChromaDB Vector Storage & Cache
+chroma_db_storage/
+*.sqlite3
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# IDE / Editor Files
+.vscode/
+.idea/
+.DS_Store
