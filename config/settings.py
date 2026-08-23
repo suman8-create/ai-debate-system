@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db_storage")
     COLLECTION_NAME: str = "debate_curated_evidence"
     
-    # Search API
-    TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 
 settings = Settings()
