@@ -1,123 +1,142 @@
 import logging
-from typing import Optional
-from langchain_ollama import ChatOllama
+from typing import List, Optional
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_ollama import ChatOllama
 
 from config.settings import settings
-from schemas.argument_schema import StructuredArgument
-from schemas.evidence_schema import EvidenceUnit
 from db.chroma_client import evidence_store
-from db.supabase_client import supabase_store
+from schemas.argument_schema import ArgumentType, StructuredArgument
 
 logger = logging.getLogger(__name__)
 
-class ProDebateAgent:
-    """Affirmative debater agent that constructs structured, grounded arguments in support of the motion."""
 
-    def __init__(self):
-        self.llm = ChatOllama(
-            model=settings.REASONING_MODEL,
-            base_url=settings.OLLAMA_BASE_URL,
-            temperature=0.7
+class ProDebaterAgent:
+
+  def __init__(self):
+    self.llm = ChatOllama(
+        model=settings.REASONING_MODEL,
+        base_url=settings.OLLAMA_BASE_URL,
+        temperature=0.7,  # Essential for varied argumentation & rebuttal creativity
+        keep_alive="24h",
+        num_ctx=4096,
+        num_predict=700,
+    )
+    self.evidence_db = evidence_store
+
+  def generate_argument(
+      self,
+      topic: str,
+      round_number: int,
+      opponent_argument: Optional[StructuredArgument] = None,
+      audit_feedback: Optional[str] = None,
+      prior_arguments: Optional[List[StructuredArgument]] = None,
+  ) -> StructuredArgument:
+    arg_type = (
+        ArgumentType.CONSTRUCTIVE
+        if round_number == 1
+        else (
+            ArgumentType.REBUTTAL
+            if round_number == 2
+            else ArgumentType.CLOSING
         )
-        self.evidence_db = evidence_store
-        self.supabase = supabase_store
+    )
 
-    def generate_argument(
-        self,
-        topic: str,
-        round_number: int = 1,
-        opponent_argument: Optional[StructuredArgument] = None,
-        audit_feedback: Optional[str] = None
-    ) -> StructuredArgument:
-        """Constructs a 5-tier PRO argument or rebuttal based on ChromaDB evidence."""
-        arg_type = "CONSTRUCTIVE" if round_number == 1 else "REBUTTAL"
-        print(f"\n[PRO Agent] Generating {arg_type} for Round {round_number}...")
+    print(f"\n[PRO Agent] Generating {arg_type.value} for Round {round_number}...")
 
-        # 1. Retrieve supporting evidence from ChromaDB
-        if opponent_argument:
-            search_query = f"{topic} affirmative response to {opponent_argument.claim}"
-        else:
-            search_query = f"{topic} benefits advantages evidence supporting affirmative"
+    # Dynamic Retrieval Query
+    if opponent_argument and round_number > 1:
+      retrieval_query = (
+          f"{topic} benefits counter-evidence refuting"
+          f" {opponent_argument.claim}"
+      )
+    else:
+      retrieval_query = (
+          f"{topic} economic social benefits evidence statistics data"
+      )
 
-        retrieved_docs = self.evidence_db.search_evidence(query=search_query, k=2)
-
-        live_evidence: Optional[EvidenceUnit] = None
-        evidence_quote = "No explicit quote retrieved. Ground argument using strict deductive logic."
-        evidence_source = None
-
-        if retrieved_docs:
-            doc = retrieved_docs[0]
-            meta = doc.metadata
-            evidence_quote = doc.page_content
-            evidence_source = meta.get("source_url")
-            live_evidence = EvidenceUnit(
-                evidence_id=meta.get("evidence_id", f"ev_pro_{round_number}"),
-                claim_text=doc.page_content[:200],
-                quote=doc.page_content,
-                source_url=evidence_source or "https://evidence.source",
-                publisher=meta.get("publisher", "Research Source"),
-                evidence_score=float(meta.get("evidence_score", 0.8))
-            )
-
-        # 2. Build generation prompt
-        revision_context = (
-            f"PREVIOUS ATTEMPT FAILED AUDIT. Auditor Feedback: {audit_feedback}\nFix these issues completely!"
-            if audit_feedback else "Initial attempt for this round."
-        )
-
-        opponent_context = (
-            f"Opponent Claim: {opponent_argument.claim}\n"
-            f"Opponent Reasoning: {opponent_argument.reasoning}\n"
-            f"Target Claim ID: {opponent_argument.argument_id}"
-            if opponent_argument else "No opponent argument (Opening Round)."
-        )
-
-        prompt = ChatPromptTemplate.from_messages([
-            (
-                "system",
-                "You are an elite, Oxford-style affirmative (PRO) debater in a competitive dialectical debate.\n"
-                "Your objective is to construct a rigorous argument defending the topic.\n\n"
-                "Rules:\n"
-                "1. Strictly ground your claim, reasoning, and impact in the provided Evidence Quote.\n"
-                "2. If this is a REBUTTAL, directly dismantle the opponent's premise.\n"
-                "3. Avoid logical fallacies (no straw man, no slippery slope).\n"
-                "4. Make the reasoning deductively tight and the impact concrete."
-            ),
-            (
-                "human",
-                "Debate Topic: {topic}\n"
-                "Side: PRO\n"
-                "Round: {round_number}\n"
-                "Argument Type: {arg_type}\n\n"
-                "REVISION / AUDIT STATUS:\n{revision_status}\n\n"
-                "OPPONENT ARGUMENT (To Rebut):\n{opp_context}\n\n"
-                "GROUNDING EVIDENCE:\nQuote: {quote}\nSource: {source}\n\n"
-                "Generate the StructuredArgument containing claim, reasoning, and impact."
-            )
+    retrieved_docs = self.evidence_db.search_evidence(query=retrieval_query, k=3)
+    evidence_context = (
+        "\n".join([
+            f"- [{doc.metadata.get('publisher', 'Source')}]:"
+            f' "{doc.page_content}" (URL:'
+            f" {doc.metadata.get('source_url', 'N/A')})"
+            for doc in retrieved_docs
         ])
+        if retrieved_docs
+        else "No direct evidence retrieved."
+    )
 
-        structured_llm = self.llm.with_structured_output(StructuredArgument)
-        chain = prompt | structured_llm
+    history_context = "None (Opening Turn)"
+    if prior_arguments:
+      history_context = "\n".join([
+          f"- [Round {a.round_number} {a.side}]: {a.claim}"
+          for a in prior_arguments
+      ])
 
-        argument = chain.invoke({
-            "topic": topic,
-            "round_number": round_number,
-            "arg_type": arg_type,
-            "revision_status": revision_context,
-            "opp_context": opponent_context,
-            "quote": evidence_quote,
-            "source": evidence_source or "Unspecified"
-        })
+    opponent_context = "None (Opening Round)"
+    target_claim_id = None
+    if opponent_argument:
+      opponent_context = (
+          f"Opponent Claim (ID: {opponent_argument.argument_id}):"
+          f" {opponent_argument.claim}\nOpponent Reasoning:"
+          f" {opponent_argument.reasoning}\nOpponent Impact:"
+          f" {opponent_argument.impact}"
+      )
+      target_claim_id = opponent_argument.argument_id
 
-        argument.side = "PRO"
-        argument.round_number = round_number
-        argument.argument_type = arg_type
-        argument.evidence = live_evidence
-        argument.source_citation = evidence_source
-        if opponent_argument:
-            argument.target_claim_id = opponent_argument.argument_id
+    feedback_instruction = (
+        "\nCRITICAL REVISION DIRECTIVE: Your previous attempt was REJECTED with"
+        f" the following auditor feedback:\n'{audit_feedback}'\nYou MUST"
+        " completely change your phrasing, use new evidence, and fix these"
+        " flaws."
+        if audit_feedback
+        else ""
+    )
 
-        return argument
+    prompt = ChatPromptTemplate.from_messages([(
+        "system",
+        "You are an elite Oxford-Style Debater representing the PRO (Affirmative)"
+        " side.\n\n"
+        "STRICT CONSTRAINTS:\n"
+        "1. You must ALWAYS argue in FAVOR of the topic.\n"
+        "2. Synthesize arguments in your own words—DO NOT copy raw quotes"
+        " verbatim into your reasoning.\n"
+        "3. Every round must introduce a DIFFERENT analytical angle (e.g., Round"
+        " 1: Economic ROI & Human Capital, Round 2: Equity & Systemic"
+        " Opportunity, Round 3: Global Competitiveness).\n"
+        "4. In REBUTTAL rounds, expose why the CON objection is flawed and"
+        " reaffirm the PRO stance.",
+    ), (
+        "human",
+        "Debate Topic: {topic}\n"
+        "Stage: Round {round_number} ({arg_type})\n\n"
+        "PREVIOUS ROUNDS:\n{history_context}\n\n"
+        "OPPONENT ARGUMENT TO COUNTER:\n{opponent_context}\n\n"
+        "AVAILABLE RESEARCH EVIDENCE:\n{evidence_context}\n"
+        "{feedback_instruction}\n\n"
+        "Generate a novel StructuredArgument for the PRO side.",
+    )])
 
-pro_agent = ProDebateAgent()
+    structured_llm = self.llm.with_structured_output(StructuredArgument)
+    chain = prompt | structured_llm
+
+    arg: StructuredArgument = chain.invoke({
+        "topic": topic,
+        "round_number": round_number,
+        "arg_type": arg_type.value,
+        "history_context": history_context,
+        "opponent_context": opponent_context,
+        "evidence_context": evidence_context,
+        "feedback_instruction": feedback_instruction,
+    })
+
+    arg.side = "PRO"
+    arg.round_number = round_number
+    arg.argument_type = arg_type
+    if target_claim_id:
+      arg.target_claim_id = target_claim_id
+
+    return arg
+
+
+pro_agent = ProDebaterAgent()

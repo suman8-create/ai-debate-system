@@ -19,7 +19,7 @@ class ConflictResolverAgent:
             model=settings.REASONING_MODEL,
             base_url=settings.OLLAMA_BASE_URL,
             temperature=0.1,
-            keep_alive="1h",
+            keep_alive="24h",
             num_ctx=2048
         )
         self.evidence_db = evidence_store
