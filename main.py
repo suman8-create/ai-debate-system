@@ -1,34 +1,41 @@
-from agents.pro_agent import pro_agent
-from agents.con_agent import con_agent
-from agents.conflict_resolver import conflict_resolver
-from agents.research_agent import research_agent
+from graph.controller import debate_graph
+from graph.state import DebateState
 from db.supabase_client import supabase_store
 
-def test_conflict_resolver():
-    topic = "Should artificial intelligence development be paused globally for safety regulation?"
+def run_full_debate():
+    topic = "Should college education be free?"
+    
+    # 1. Initialize Supabase Session
     session_id = supabase_store.create_session(topic=topic)
-    print(f"Active Session: {session_id}")
+    print(f"============================================================")
+    print(f"STARTING AUTONOMOUS DEBATE WORKFLOW")
+    print(f"Session ID: {session_id}")
+    print(f"Topic:      {topic}")
+    print(f"============================================================\n")
 
-    research_agent.conduct_research(topic=topic, max_sources_per_query=1)
-
-    pro_arg = pro_agent.generate_argument(topic=topic, round_number=1)
-    con_arg = con_agent.generate_argument(topic=topic, round_number=1, opponent_argument=pro_arg)
-
-    # Resolve Empirical Clashes
-    resolution = conflict_resolver.resolve_clash(
+    # 2. Set Initial Graph State (e.g. 2 full rounds)
+    initial_state = DebateState(
+        session_id=session_id,
         topic=topic,
-        pro_arg=pro_arg,
-        con_arg=con_arg,
-        session_id=session_id
+        max_rounds=2
     )
 
+    # 3. Run the compiled LangGraph State Machine
+    final_state = debate_graph.invoke(initial_state)
+
+    # 4. Display Final Results
     print("\n" + "=" * 60)
-    print("CONFLICT RESOLUTION REPORT")
+    print("DEBATE WORKFLOW COMPLETE: FINAL ADJUDICATION")
     print("=" * 60)
-    print(f"Direct Conflict Detected: {resolution.has_direct_conflict}")
-    print(f"Favored Side:             {resolution.favored_side}")
-    print(f"Empirical Ground Truth:   {resolution.empirical_ground_truth}")
-    print(f"Resolution Notes:         {resolution.resolution_notes}")
+    verdict = final_state.get("judge_verdict", {})
+    print(f"WINNER:               {verdict.get('winner')}")
+    
+    pro_score = verdict.get('pro_scorecard', {}).get('total_score', 'N/A')
+    con_score = verdict.get('con_scorecard', {}).get('total_score', 'N/A')
+    print(f"PRO Final Score:      {pro_score} / 100")
+    print(f"CON Final Score:      {con_score} / 100")
+    
+    print(f"\nRationale:\n{verdict.get('adjudication_rationale')}")
 
 if __name__ == "__main__":
-    test_conflict_resolver()
+    run_full_debate()

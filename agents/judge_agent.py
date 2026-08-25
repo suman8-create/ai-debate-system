@@ -31,7 +31,7 @@ class JudgeAgent:
     ) -> AdjudicationVerdict:
         print(f"\n[Judge Agent] Evaluating complete transcript of {len(arguments)} arguments...")
 
-        # 1. Format Debate Transcript
+        # Format Debate Transcript
         transcript_blocks = []
         for arg in arguments:
             evidence_info = (
@@ -83,7 +83,7 @@ class JudgeAgent:
         })
 
         # Persist Verdict to Supabase if session_id exists
-        iif session_id:
+        if session_id:
             try:
                 update_payload = {
                     "status": "COMPLETED",

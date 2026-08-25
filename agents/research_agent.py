@@ -42,10 +42,18 @@ class ResearchAgent:
         prompt = ChatPromptTemplate.from_messages([
             (
                 "system",
-                "You are an impartial academic research strategist. Deconstruct the given debate topic into 3 to 4 specific, objective search queries. "
-                "Ensure queries cover empirical statistics, pro arguments, and con/risk perspectives."
+                "You are an expert research assistant preparing background evidence for an Oxford-style debate.\n"
+                "Your task is to break down the debate topic into 4 targeted search engine queries.\n\n"
+                "CRITICAL SEARCH RULES:\n"
+                "1. DO NOT write long questions or conversational sentences.\n"
+                "2. Output strictly concise 3-to-6 word keyword search phrases (like you would type into Google or DuckDuckGo).\n"
+                "3. Focus on empirical data, academic studies, economic metrics, and official statistics.\n"
+                "4. Include specific angles: (a) statistics/costs, (b) benefits/pros, (c) harms/cons, (d) comparative international case studies."
             ),
-            ("human", "Debate Topic: {topic}")
+            (
+                "human",
+                "Generate 4 keyword search queries for this debate topic:\nTopic: {topic}"
+            )
         ])
         
         structured_llm = self.llm.with_structured_output(QueryDecompositionOutput)
@@ -57,9 +65,10 @@ class ResearchAgent:
         except Exception as e:
             logger.error(f"Error decomposing topic: {e}")
             return [
-                f"{topic} empirical evidence studies",
-                f"{topic} advantages benefits",
-                f"{topic} disadvantages risks"
+                f"{topic} empirical statistics data",
+                f"{topic} economic benefits study",
+                f"{topic} risks harms evidence",
+                f"{topic} international comparative outcomes"
             ]
 
     def extract_evidence_from_text(self, text: str, source_meta: SourceMetadata) -> List[EvidenceUnit]:
