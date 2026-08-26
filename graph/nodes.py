@@ -8,12 +8,14 @@ from agents.judge_agent import judge_agent
 from agents.pro_agent import pro_agent
 from agents.research_agent import research_agent
 from graph.state import DebateState
+from db.chroma_client import evidence_store
 
 logger = logging.getLogger(__name__)
 
 
 def research_node(state: DebateState) -> Dict[str, Any]:
     print(f"\n[Graph: Research Node] Searching and indexing evidence for: '{state.topic}'")
+    evidence_store.reset_evidence_collection()
     research_agent.conduct_research(topic=state.topic, max_sources_per_query=1)
     return {}
 

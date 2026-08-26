@@ -20,27 +20,34 @@ logger = logging.getLogger(__name__)
 class QueryDecompositionOutput(BaseModel):
   queries: List[str] = Field(
       description=(
-          "List of 3-4 concise keyword search phrases covering statistics,"
-          " benefits, harms, and case studies."
+          "List of 4 concise keyword search phrases covering statistics,"
+          " economic benefits, costs/harms, and international case studies."
       )
   )
 
 
 class RawEvidenceItem(BaseModel):
-  claim_text: str = Field(description="The underlying factual assertion.")
+  claim_text: str = Field(
+      description=(
+          "The core factual claim with specific statistics, numbers, or"
+          " findings."
+      )
+  )
   quote: str = Field(
-      description="Verbatim or precise extract supporting the claim."
+      description="Direct excerpt or citation from the text supporting this."
   )
 
 
 class EvidenceExtractionOutput(BaseModel):
   evidence_items: List[RawEvidenceItem] = Field(
-      description="Extracted atomic evidence points from the text."
+      description=(
+          "Extracted atomic evidence points with empirical data or specific"
+          " facts."
+      )
   )
 
 
 class ResearchAgent:
-  """Agent responsible for topic decomposition, live web search, dynamic source validation, and ChromaDB evidence indexing."""
 
   def __init__(self):
     self.llm = ChatOllama(
@@ -56,19 +63,12 @@ class ResearchAgent:
   def decompose_topic(self, topic: str) -> List[str]:
     prompt = ChatPromptTemplate.from_messages([(
         "system",
-        "You are an expert research assistant preparing background evidence"
-        " for an Oxford-style debate.\n"
-        "Your task is to break down the debate topic into 4 targeted search"
-        " engine queries.\n\n"
-        "CRITICAL SEARCH RULES:\n"
-        "1. DO NOT write long questions or conversational sentences.\n"
-        "2. Output strictly concise 3-to-6 word keyword search phrases (like"
-        " you would type into Google or DuckDuckGo).\n"
-        "3. Focus on empirical data, academic studies, economic metrics, and"
-        " official statistics.\n"
-        "4. Include specific angles: (a) statistics/costs, (b) benefits/pros,"
-        " (c) harms/cons, (d) comparative international case studies.",
-    ), ("human", "Generate 4 keyword search queries for: {topic}")])
+        "You are an academic research strategist.\n"
+        "Break down the debate motion into 4 targeted keyword search queries"
+        " (3-6 words each).\n"
+        "Target: (1) statistics/costs, (2) economic ROI/benefits, (3) unintended"
+        " consequences/harms, (4) international case studies.",
+    ), ("human", "Motion: {topic}")])
 
     structured_llm = self.llm.with_structured_output(QueryDecompositionOutput)
     chain = prompt | structured_llm
@@ -88,13 +88,16 @@ class ResearchAgent:
   def extract_evidence_from_text(
       self, text: str, source_meta: SourceMetadata
   ) -> List[EvidenceUnit]:
-    truncated_text = text[:3000]
+    truncated_text = text[:3500]
 
     prompt = ChatPromptTemplate.from_messages([(
         "system",
-        "You are a rigorous evidence extraction engine. Extract up to 2"
-        " distinct, verifiable, factual claims and quotes from the text. "
-        "Do not summarize or invent facts. Return exact extracted quotes.",
+        "You are an evidence extraction engine for competitive debates.\n"
+        "Extract 1 to 2 high-impact, verifiable empirical facts from the"
+        " text.\n"
+        "PRIORITIZE: Concrete statistics (%, $ amounts, ratios), study"
+        " findings, and expert institutional conclusions.\n"
+        "DO NOT summarize broadly. Extract the exact supporting quote.",
     ), ("human", "Source Text:\n{text}")])
 
     structured_llm = self.llm.with_structured_output(EvidenceExtractionOutput)
@@ -104,15 +107,16 @@ class ResearchAgent:
     try:
       result = chain.invoke({"text": truncated_text})
       for item in result.evidence_items:
-        unit = EvidenceUnit(
-            claim_text=item.claim_text,
-            quote=item.quote,
-            source_url=source_meta.url,
-            publisher=source_meta.publisher,
-            evidence_score=source_meta.credibility_score,
-            status="SUPPORTED",
-        )
-        evidence_units.append(unit)
+        if len(item.quote.strip()) > 10:
+          unit = EvidenceUnit(
+              claim_text=item.claim_text,
+              quote=item.quote,
+              source_url=source_meta.url,
+              publisher=source_meta.publisher,
+              evidence_score=source_meta.credibility_score,
+              status="SUPPORTED",
+          )
+          evidence_units.append(unit)
     except Exception as e:
       logger.warning(f"Failed to extract structured evidence: {e}")
 
@@ -130,7 +134,6 @@ class ResearchAgent:
     all_sources: List[SourceMetadata] = []
     scrape_tasks = []
 
-    # 1. Gather URLs
     for q in queries:
       search_hits = self.search_service.search_topic(
           q, max_results=max_sources_per_query
@@ -145,7 +148,6 @@ class ResearchAgent:
         all_sources.append(source_meta)
         scrape_tasks.append((hit, source_meta))
 
-    # 2. Parallel scraping and extraction
     all_evidence: List[EvidenceUnit] = []
 
     def _fetch_and_extract(task):
@@ -169,7 +171,6 @@ class ResearchAgent:
       for res in results:
         all_evidence.extend(res)
 
-    # 3. Vector indexing
     if all_evidence:
       print(
           f"[Research Agent] Storing {len(all_evidence)} atomic evidence"
