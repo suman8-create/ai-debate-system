@@ -1,9 +1,104 @@
 @import "tailwindcss";
 
+@theme {
+  /* Neutral editorial foundation */
+  --color-paper: #f5f4f1;
+  --color-surface: #ffffff;
+  --color-sunken: #efede8;
+  --color-ink: #1b1b1a;
+  --color-ink-soft: #3a3936;
+  --color-muted: #77746d;
+  --color-faint: #9b988f;
+  --color-line: #e4e2db;
+  --color-line-strong: #d3d0c8;
+
+  /* PRO — cool, considered blue */
+  --color-pro: #2b5c9e;
+  --color-pro-ink: #234d84;
+  --color-pro-soft: #eaf1f9;
+  --color-pro-line: #cddef0;
+
+  /* CON — warm amber, equal visual weight */
+  --color-con: #b0570f;
+  --color-con-ink: #954a0d;
+  --color-con-soft: #f9efe5;
+  --color-con-line: #eed6bf;
+
+  /* Semantic verification layer */
+  --color-verified: #2f7a55;
+  --color-verified-soft: #e7f1eb;
+  --color-flagged: #a32b2b;
+  --color-flagged-soft: #f6e9e7;
+  --color-caution: #8a6300;
+  --color-caution-soft: #f4edda;
+
+  --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+
+  --radius: 0.25rem;
+}
+
+html {
+  background-color: var(--color-paper);
+}
+
 body {
-  background-color: #020617;
-  color: #f8fafc;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
   min-height: 100vh;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Numeric alignment for scorecards, audits and metrics */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Focus visibility — accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-pro);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Thin, deliberate scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@keyframes draft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.draft-dot {
+  animation: draft-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise-in {
+  animation: rise-in 0.32s ease-out both;
+}
+
+@keyframes trace-line {
+  from { stroke-dashoffset: var(--dash, 100); }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Reduced motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .draft-dot { opacity: 0.7; }
 }
