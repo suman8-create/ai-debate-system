@@ -13,7 +13,7 @@ const TONE_CLASSES = {
 export function Tag({ tone = 'muted', children, className }) {
   return (
     <span
-      className={clsx(
+      className={cx(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-5 tracking-wide',
         TONE_CLASSES[tone] || TONE_CLASSES.muted,
         className
@@ -35,7 +35,7 @@ export function Dot({ tone = 'muted', pulse = false }) {
   }[tone];
   return (
     <span
-      className={clsx('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color, pulse && 'draft-dot')}
+      className={cx('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color, pulse && 'draft-dot')}
       aria-hidden="true"
     />
   );
@@ -45,7 +45,7 @@ export function Dot({ tone = 'muted', pulse = false }) {
 export function Overline({ children, className }) {
   return (
     <span
-      className={clsx(
+      className={cx(
         'block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-faint',
         className
       )}
@@ -78,7 +78,7 @@ export function Meter({ value, tone = 'pro', label, unit = '%' }) {
       </div>
       <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-sunken">
         <div
-          className={clsx('h-full rounded-full transition-[width] duration-700 ease-out', barColor)}
+          className={cx('h-full rounded-full transition-[width] duration-700 ease-out', barColor)}
           style={{ width: `${pctValue}%` }}
         />
       </div>
