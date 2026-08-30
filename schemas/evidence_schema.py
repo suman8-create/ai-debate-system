@@ -67,3 +67,5 @@ class ResearchQueryResult(BaseModel):
     generated_queries: List[str]
     sources_discovered: List[SourceMetadata]
     extracted_evidence: List[EvidenceUnit]
+
+AtomicEvidence = EvidenceUnit
